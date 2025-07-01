@@ -103,21 +103,21 @@ uv run python train.py
     *   `pooled_features`: `torch.Tensor` 형태의 RoI-Pooled Feature. 각 RoI에 대해 고정된 크기(예: 7x7)로 추출된 Feature Map입니다.
 *   **의미:** `RoIPooling` 레이어가 다양한 크기의 RoI에서 고정된 크기의 Feature를 올바르게 추출하는지 테스트합니다. 이는 Fast R-CNN Head의 입력으로 사용됩니다. Matplotlib을 사용하여 원본 이미지에 RoI Pooling에 사용된 RoI들을 시각화합니다.
 
-```markdown
-**참고: `02_test_proposal_layer.py`와 `03_test_roi_pooling.py`에서 제안(proposal) 차이**
+> [!NOTE]
+> **참고: `02_test_proposal_layer.py`와 `03_test_roi_pooling.py`에서 제안(proposal) 차이**
+> 
+> `ProposalLayer`와 `RoIPooling`은 Faster R-CNN 파이프라인에서 서로 다른 역할을 수행합니다.
+> 
+> *   **`ProposalLayer` (scripts/02_test_proposal_layer.py):** 이 레이어는 Region Proposal Network (RPN)의 출력으로부터 **영역 제안(Region Proposals, ROIs)을 생성하고 필터링**하는 역할을 합니다. RPN의 원시 출력에 NMS(Non-Maximum Suppression)를 적용하고 점수 기반 필터링을 통해 고정된 수의 고품질 제안(예: 학습 시 2000개, 테스트 시 300개)을 선택합니다. 이 레이어의 출력 자체가 제안들의 집합입니다.
+> 
+> *   **`RoIPooling` (scripts/03_test_roi_pooling.py):** 이 레이어는 **제안의 개수를 줄이지 않습니다.** 대신, 이미 생성된 제안(ROIs)을 입력으로 받아, 각 제안에 대해 백본 네트워크의 특징 맵(feature map)에서 고정된 크기의 특징 맵을 추출합니다. `RoIPooling`의 목적은 원래 크기나 종횡비에 관계없이 모든 제안이 일관된 차원(예: 7x7)의 특징 맵을 생성하여 Fast R-CNN 헤드로 전달될 수 있도록 하는 것입니다.
+> 
+> 요약하자면:
+> *   `ProposalLayer`는 *몇 개의* 제안이 다음 단계로 전달될지 결정합니다.
+> *   `RoIPooling`은 *각 제안*을 균일한 특징 표현으로 처리하지만, 제안의 *개수*는 변경하지 않습니다.
+> 
+> 따라서 두 스크립트에서 보이는 제안의 개수는 `ProposalLayer`의 필터링 결과이며, `RoIPooling`은 단순히 이 고정된 제안 집합에 대해 작동하는 것입니다.
 
-`ProposalLayer`와 `RoIPooling`은 Faster R-CNN 파이프라인에서 서로 다른 역할을 수행합니다.
-
-*   **`ProposalLayer` (scripts/02_test_proposal_layer.py):** 이 레이어는 Region Proposal Network (RPN)의 출력으로부터 **영역 제안(Region Proposals, ROIs)을 생성하고 필터링**하는 역할을 합니다. RPN의 원시 출력에 NMS(Non-Maximum Suppression)를 적용하고 점수 기반 필터링을 통해 고정된 수의 고품질 제안(예: 학습 시 2000개, 테스트 시 300개)을 선택합니다. 이 레이어의 출력 자체가 제안들의 집합입니다.
-
-*   **`RoIPooling` (scripts/03_test_roi_pooling.py):** 이 레이어는 **제안의 개수를 줄이지 않습니다.** 대신, 이미 생성된 제안(ROIs)을 입력으로 받아, 각 제안에 대해 백본 네트워크의 특징 맵(feature map)에서 고정된 크기의 특징 맵을 추출합니다. `RoIPooling`의 목적은 원래 크기나 종횡비에 관계없이 모든 제안이 일관된 차원(예: 7x7)의 특징 맵을 생성하여 Fast R-CNN 헤드로 전달될 수 있도록 하는 것입니다.
-
-요약하자면:
-*   **`ProposalLayer`**는 *몇 개의* 제안이 다음 단계로 전달될지 결정합니다.
-*   **`RoIPooling`**은 *각 제안*을 균일한 특징 표현으로 처리하지만, 제안의 *개수*는 변경하지 않습니다.
-
-따라서 두 스크립트에서 보이는 제안의 개수는 `ProposalLayer`의 필터링 결과이며, `RoIPooling`은 단순히 이 고정된 제안 집합에 대해 작동하는 것입니다.
-```
 
 ### `04_test_fast_rcnn_head.py`
 *   **Input:**
