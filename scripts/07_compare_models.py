@@ -14,13 +14,14 @@ module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 
+
 from frcnn.models.faster_rcnn import FasterRCNN
 
 def load_image(image_path):
     img = read_image(image_path)
     return img
 
-def visualize_predictions(image, predictions, model_name, score_threshold=0.7):
+def visualize_predictions(image, predictions, model_name, score_threshold=0.7, class_names=None):
     # Convert image to PIL for drawing
     if isinstance(image, torch.Tensor):
         image = T.ToPILImage()(image)
@@ -32,14 +33,20 @@ def visualize_predictions(image, predictions, model_name, score_threshold=0.7):
     all_labels = []
     all_scores = []
 
-    if predictions:
-        for p in predictions:
-            if len(p['boxes']) > 0:
-                # Filter by score threshold
-                keep = p['scores'] > score_threshold
-                all_boxes.append(p['boxes'][keep])
+    if predictions and len(predictions) > 0:
+        p = predictions[0]
+        if p['boxes'].numel() > 0:
+            # Filter by score threshold
+            keep = p['scores'] > score_threshold
+            all_boxes.append(p['boxes'][keep])
+            
+            if class_names:
+                # Use provided class_names for labels
+                all_labels.extend([f"{class_names[l]} ({s:.2f})" for l, s in zip(p['labels'][keep], p['scores'][keep])])
+            else:
+                # Fallback to default if class_names not provided
                 all_labels.extend([f"Class: {l}, Score: {s:.2f}" for l, s in zip(p['labels'][keep], p['scores'][keep])])
-                all_scores.append(p['scores'][keep])
+            all_scores.append(p['scores'][keep])
 
     if len(all_boxes) > 0:
         boxes = torch.cat(all_boxes)
@@ -50,11 +57,7 @@ def visualize_predictions(image, predictions, model_name, score_threshold=0.7):
     else:
         drawn_image = img_tensor
 
-    plt.figure(figsize=(10, 10))
-    plt.imshow(drawn_image.permute(1, 2, 0).cpu().numpy())
-    plt.title(f'Predictions from {model_name}')
-    plt.axis('off')
-    plt.show()
+    return drawn_image.permute(1, 2, 0).cpu().numpy(), model_name
 
 def main():
     print("--- Comparing Trained Model with Pre-trained Model ---")
@@ -99,17 +102,31 @@ def main():
     # Add batch dimension
     input_tensor = img_tensor.unsqueeze(0).to(device)
 
-    # --- 4. Run inference and visualize ---
+    # --- 4. Run inference and get images for plotting ---
     print("\nRunning inference with trained model...")
     with torch.no_grad():
         img_size = input_tensor.shape[2:] # Get H, W from the input tensor
         trained_predictions = trained_model(input_tensor, img_size)
-    visualize_predictions(original_image, trained_predictions, "Your Trained Model")
+    trained_image_np, trained_title = visualize_predictions(original_image, trained_predictions, "Your Trained Model")
 
     print("\nRunning inference with pre-trained model...")
     with torch.no_grad():
         pretrained_predictions = pretrained_model(input_tensor)
-    visualize_predictions(original_image, pretrained_predictions, "Torchvision Pre-trained Model")
+    pretrained_image_np, pretrained_title = visualize_predictions(original_image, pretrained_predictions, "Torchvision Pre-trained Model")
+
+    # --- 5. Plot both images in one figure ---
+    fig, axes = plt.subplots(1, 2, figsize=(10, 6))
+
+    axes[0].imshow(trained_image_np)
+    axes[0].set_title(trained_title)
+    axes[0].axis('off')
+
+    axes[1].imshow(pretrained_image_np)
+    axes[1].set_title(pretrained_title)
+    axes[1].axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
     print("\n--- Comparison Complete ---")
 

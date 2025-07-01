@@ -15,7 +15,7 @@ class RPN(nn.Module):
         n_anchor (int): Number of anchors to be generated for each feature map pixel.
     """
 
-    def __init__(self, in_channels=512, mid_channels=512, n_anchor=9):
+    def __init__(self, in_channels=2048, mid_channels=512, n_anchor=9):
         super(RPN, self).__init__()
 
         # A 3x3 convolutional layer to process the input feature map.

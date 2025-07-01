@@ -16,7 +16,7 @@ class FastRCNNHead(nn.Module):
         roi_output_size (tuple): The fixed output size of the RoI Pooling layer (height, width).
     """
 
-    def __init__(self, in_channels, num_classes, roi_output_size=(7, 7)):
+    def __init__(self, in_channels=2048, num_classes=21, roi_output_size=(7, 7)):
         super(FastRCNNHead, self).__init__()
 
         # Calculate the input features for the first fully connected layer

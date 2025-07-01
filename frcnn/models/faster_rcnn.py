@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torchvision.ops as ops
 
-from frcnn.models.vgg16 import get_vgg16_base_net
+from frcnn.models.resnet50 import get_resnet50_base_net
 from frcnn.utils.bbox_tools import loc2bbox
 from frcnn.models.rpn import RPN
 from frcnn.models.roi_pooling import RoIPooling
@@ -39,10 +39,10 @@ class FasterRCNN(nn.Module):
         self.feat_stride = feat_stride
 
         # 1. Base Network (Feature Extractor)
-        self.extractor = get_vgg16_base_net()
+        self.extractor = get_resnet50_base_net()
 
         # 2. Region Proposal Network (RPN)
-        self.rpn = RPN(in_channels=512, mid_channels=512, n_anchor=9)
+        self.rpn = RPN(in_channels=2048, mid_channels=512, n_anchor=9)
 
         # 3. Proposal Layer (converts RPN outputs to proposals)
         self.proposal_layer = ProposalLayer(
@@ -55,7 +55,7 @@ class FasterRCNN(nn.Module):
         self.roi_pooling = RoIPooling(output_size=roi_output_size, spatial_scale=1.0 / feat_stride)
 
         # 5. Fast R-CNN Head
-        self.head = FastRCNNHead(in_channels=512, num_classes=num_classes, roi_output_size=roi_output_size)
+        self.head = FastRCNNHead(in_channels=2048, num_classes=num_classes, roi_output_size=roi_output_size)
 
     def forward(self, x: torch.Tensor, img_size: tuple):
         """
@@ -66,11 +66,11 @@ class FasterRCNN(nn.Module):
             img_size (tuple): Original image size (height, width).
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-                - rpn_cls_scores (torch.Tensor): RPN classification scores.
-                - rpn_bbox_preds (torch.Tensor): RPN bounding box predictions.
-                - roi_cls_scores (torch.Tensor): RoI classification scores.
-                - roi_bbox_preds (torch.Tensor): RoI bounding box predictions.
+            List[Dict[str, torch.Tensor]]: A list of dictionaries, where each dictionary
+                represents the detections for one image and contains:
+                - 'boxes' (torch.Tensor): Bounding box coordinates in (x1, y1, x2, y2) format.
+                - 'labels' (torch.Tensor): Predicted class labels.
+                - 'scores' (torch.Tensor): Prediction scores.
         """
         # 1. Feature Extraction
         feature_map = self.extractor(x)
@@ -87,71 +87,59 @@ class FasterRCNN(nn.Module):
         # 5. Fast R-CNN Head forward pass
         roi_cls_scores, roi_bbox_preds = self.head(pooled_features)
 
-        # 5. Fast R-CNN Head forward pass
-        roi_cls_scores, roi_bbox_preds = self.head(pooled_features)
-
-        if self.training:
-            return rpn_cls_scores, rpn_bbox_preds, roi_cls_scores, roi_bbox_preds
-        else:
-            # Post-processing for evaluation/inference
-            # Apply softmax to RoI classification scores
-            roi_probs = torch.softmax(roi_cls_scores, dim=1)
-            
-            # Get the predicted class labels and scores
-            scores, labels = roi_probs.max(dim=1)
-            
-            # Remove background class (label 0)
-            # Keep only foreground classes
-            foreground_indices = (labels != 0).nonzero(as_tuple=True)[0]
-            
-            if foreground_indices.numel() == 0:
-                # No foreground objects detected
-                return [{
-                    'boxes': torch.empty((0, 4), dtype=torch.float32, device=x.device),
-                    'labels': torch.empty((0,), dtype=torch.int64, device=x.device),
-                    'scores': torch.empty((0,), dtype=torch.float32, device=x.device)
-                }]
-
-            scores = scores[foreground_indices]
-            labels = labels[foreground_indices]
-            roi_bbox_preds = roi_bbox_preds[foreground_indices]
-            rois = rois[foreground_indices] # Filter rois as well
-
-            # Convert rois from (x1, y1, x2, y2) to (x, y, w, h)
-            rois_xywh = torch.stack([
-                rois[:, 0],
-                rois[:, 1],
-                rois[:, 2] - rois[:, 0],
-                rois[:, 3] - rois[:, 1]
-            ], dim=1)
-
-            # Select the bbox_preds corresponding to the predicted labels
-            # roi_bbox_preds has shape (num_rois, num_classes * 4)
-            # labels has shape (num_rois,)
-            # We need to select 4 values for each roi based on its label
-            selected_roi_bbox_preds = torch.empty((foreground_indices.numel(), 4), dtype=torch.float32, device=x.device)
-            for i, label_idx in enumerate(labels):
-                selected_roi_bbox_preds[i] = roi_bbox_preds[i, label_idx * 4 : (label_idx + 1) * 4]
-
-            # Decode bounding box predictions
-            decoded_boxes = loc2bbox(rois_xywh, selected_roi_bbox_preds)
-            
-            # Clip boxes to image boundaries
-            img_h, img_w = img_size
-            decoded_boxes[:, 0::2] = decoded_boxes[:, 0::2].clamp(min=0, max=img_w)
-            decoded_boxes[:, 1::2] = decoded_boxes[:, 1::2].clamp(min=0, max=img_h)
-
-            # Apply NMS
-            # torchvision.ops.nms expects (boxes, scores, iou_threshold)
-            # boxes should be (x1, y1, x2, y2)
-            keep = ops.nms(decoded_boxes, scores, iou_threshold=0.5) # You can adjust NMS threshold
-
-            final_boxes = decoded_boxes[keep]
-            final_labels = labels[keep]
-            final_scores = scores[keep]
-
+        # Post-processing for evaluation/inference
+        # Apply softmax to RoI classification scores
+        roi_probs = torch.softmax(roi_cls_scores, dim=1)
+        
+        # Get the predicted class labels and scores
+        scores, labels = roi_probs.max(dim=1)
+        
+        # Remove background class (label 0)
+        # Keep only foreground classes
+        foreground_indices = (labels != 0).nonzero(as_tuple=True)[0]
+        
+        if foreground_indices.numel() == 0:
+            # No foreground objects detected
             return [{
-                'boxes': final_boxes,
-                'labels': final_labels,
-                'scores': final_scores
+                'boxes': torch.empty((0, 4), dtype=torch.float32, device=x.device),
+                'labels': torch.empty((0,), dtype=torch.int64, device=x.device),
+                'scores': torch.empty((0,), dtype=torch.float32, device=x.device)
             }]
+
+        scores = scores[foreground_indices]
+        labels = labels[foreground_indices]
+        roi_bbox_preds = roi_bbox_preds[foreground_indices]
+        rois = rois[foreground_indices] # Filter rois as well
+
+        # Convert rois from (x1, y1, x2, y2) to (x, y, w, h)
+        rois_xywh = torch.stack([
+            rois[:, 0],
+            rois[:, 1],
+            rois[:, 2] - rois[:, 0],
+            rois[:, 3] - rois[:, 1]
+        ], dim=1)
+
+        # Select the bbox_preds corresponding to the predicted labels
+        selected_roi_bbox_preds = torch.empty((foreground_indices.numel(), 4), dtype=torch.float32, device=x.device)
+        for i, label_idx in enumerate(labels):
+            selected_roi_bbox_preds[i] = roi_bbox_preds[i, label_idx * 4 : (label_idx + 1) * 4]
+
+        # Decode bounding box predictions
+        decoded_boxes = loc2bbox(rois_xywh, selected_roi_bbox_preds)
+        
+        # Clip boxes to image boundaries
+        img_h, img_w = img_size
+        decoded_boxes[:, 0::2] = decoded_boxes[:, 0::2].clamp(min=0, max=img_w)
+        decoded_boxes[:, 1::2] = decoded_boxes[:, 1::2].clamp(min=0, max=img_h)
+
+        # Apply NMS
+        keep = ops.nms(decoded_boxes, scores, iou_threshold=0.5)
+
+        final_boxes = decoded_boxes[keep]
+        final_labels = labels[keep]
+        final_scores = scores[keep]
+        return [{
+            'boxes': final_boxes,
+            'labels': final_labels,
+            'scores': final_scores
+        }]

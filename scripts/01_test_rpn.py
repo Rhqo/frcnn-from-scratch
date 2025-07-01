@@ -11,7 +11,7 @@ module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 
-from frcnn.models.vgg16 import get_vgg16_base_net
+from frcnn.models.resnet50 import get_resnet50_base_net
 from frcnn.dataset import VOCDataset
 
 
@@ -96,14 +96,14 @@ if __name__ == '__main__':
     print(f"Input image shape: {dummy_image.shape}")
 
     # Get the VGG16 base network
-    base_net = get_vgg16_base_net()
+    base_net = get_resnet50_base_net()
 
     # Get the feature map from the base network
     feature_map = base_net(dummy_image)
     print(f"Feature map shape: {feature_map.shape}")
 
     # Instantiate the RPN
-    rpn = RPN(in_channels=512, mid_channels=512, n_anchor=9)
+    rpn = RPN(in_channels=2048, mid_channels=512, n_anchor=9)
     print("\nSuccessfully loaded RPN.")
 
     # Pass the feature map through the RPN
