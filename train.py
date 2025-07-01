@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 import os
 from tqdm import tqdm
@@ -65,7 +65,9 @@ def main():
         # Add more transforms like resizing, normalization later
     ])
     train_dataset = VOCDataset(root_dir=dataset_root, split='trainval', transform=transform)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
+    # Create a subset with only the first 5 images for testing
+    train_subset = Subset(train_dataset, range(5))
+    train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
 
     # Model, Optimizer, and Trainer
     model = FasterRCNN(num_classes=num_classes).to(device)

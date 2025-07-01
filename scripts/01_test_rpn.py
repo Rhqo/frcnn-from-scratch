@@ -3,6 +3,8 @@ import torch.nn as nn
 import numpy as np
 import sys
 import os
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
 
 # Add the project root to the Python path
 module_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -10,6 +12,7 @@ if module_path not in sys.path:
     sys.path.append(module_path)
 
 from frcnn.models.vgg16 import get_vgg16_base_net
+from frcnn.dataset import VOCDataset
 
 
 class RPN(nn.Module):
@@ -78,25 +81,28 @@ class RPN(nn.Module):
 
 
 if __name__ == '__main__':
-    # This is a simple test to verify the output of the RPN.
-    # It creates a dummy feature map, passes it through the RPN,
-    # and prints the shapes of the resulting tensors.
-
     print("--- Testing RPN ---")
+
+    # Path to the Pascal VOC dataset root (VOCdevkit)
+    dataset_root = os.path.join(module_path, 'data', 'VOCdevkit')
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    voc_dataset = VOCDataset(root_dir=dataset_root, split='trainval', transform=transform)
+
+    # Fetch a sample from the dataset
+    image_tensor, target = voc_dataset[5]  # Get the first sample
+    dummy_image = image_tensor.unsqueeze(0) # Add batch dimension
+    print(f"Input image shape: {dummy_image.shape}")
 
     # Get the VGG16 base network
     base_net = get_vgg16_base_net()
-
-    # Create a dummy input image
-    dummy_image = torch.randn(1, 3, 600, 800)
-    print(f"Input image shape: {dummy_image.shape}")
 
     # Get the feature map from the base network
     feature_map = base_net(dummy_image)
     print(f"Feature map shape: {feature_map.shape}")
 
     # Instantiate the RPN
-    # n_anchor=9 because we typically use 3 scales and 3 aspect ratios
     rpn = RPN(in_channels=512, mid_channels=512, n_anchor=9)
     print("\nSuccessfully loaded RPN.")
 
@@ -104,8 +110,44 @@ if __name__ == '__main__':
     rpn_cls_scores, rpn_bbox_preds = rpn(feature_map)
 
     # Print the shapes of the output tensors
-    # The classification scores should have shape (batch_size, n_anchor * 2, height, width)
-    # The bounding box predictions should have shape (batch_size, n_anchor * 4, height, width)
     print(f"\nRPN classification scores shape: {rpn_cls_scores.shape}")
     print(f"RPN bounding box predictions shape: {rpn_bbox_preds.shape}")
+
+    # --- Visualization ---
+    # Reshape RPN classification scores to (batch_size, height, width, n_anchor * 2)
+    # Then take the foreground scores ([:, 1::2]) and reshape to (batch_size, height, width, n_anchor)
+    # For simplicity, we'll average across anchors or take the max for visualization
+    
+    # Assuming batch_size = 1
+    rpn_cls_scores_reshaped = rpn_cls_scores.permute(0, 2, 3, 1).contiguous()
+    # Get foreground scores (class 1)
+    foreground_scores = rpn_cls_scores_reshaped[0, :, :, 1::2] # Shape: (H, W, n_anchor)
+    
+    # Take the maximum score across anchors for each spatial location
+    # This gives a single heatmap for objectness
+    objectness_heatmap = foreground_scores.max(dim=-1)[0] # Shape: (H, W)
+
+    # Normalize heatmap for display
+    objectness_heatmap_np = objectness_heatmap.detach().cpu().numpy()
+    objectness_heatmap_np = (objectness_heatmap_np - objectness_heatmap_np.min()) / \
+                            (objectness_heatmap_np.max() - objectness_heatmap_np.min() + 1e-6)
+
+    # Convert image tensor to numpy for display
+    image_np = dummy_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+    axes[0].imshow(image_np)
+    axes[0].set_title('Original Image')
+    axes[0].axis('off')
+
+    # Display heatmap
+    im = axes[1].imshow(objectness_heatmap_np, cmap='viridis', alpha=0.8)
+    axes[1].set_title('RPN Objectness Heatmap')
+    axes[1].axis('off')
+    fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+
+    plt.tight_layout()
+    plt.show()
+
     print("--- Test Complete ---")

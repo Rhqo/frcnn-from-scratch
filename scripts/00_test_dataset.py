@@ -1,9 +1,10 @@
-
-
 import os
 import sys
 import torch
 import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+from torchvision.utils import draw_bounding_boxes
+import numpy as np
 
 # Add the project root to the Python path
 # This allows us to import modules from the 'frcnn' directory
@@ -62,6 +63,31 @@ def main():
         box = boxes[i]
         class_name = VOC_CLASSES[labels[i]]
         print(f"  - Object {i+1}: Class='{class_name}', BBox=[{box[0]:.2f}, {box[1]:.2f}, {box[2]:.2f}, {box[3]:.2f}]")
+
+    # --- Visualization ---
+    # Convert image tensor to uint8 for drawing bounding boxes
+    image_uint8 = (image_tensor * 255).to(torch.uint8)
+
+    # Prepare labels for visualization
+    display_labels = [VOC_CLASSES[label] for label in target['labels'].tolist()]
+
+    # Draw bounding boxes
+    drawn_image = draw_bounding_boxes(
+        image=image_uint8,
+        boxes=target['boxes'],
+        labels=display_labels,
+        colors="red",
+        width=2
+    )
+
+    # Convert to numpy array for matplotlib and permute dimensions (C, H, W) -> (H, W, C)
+    drawn_image_np = drawn_image.permute(1, 2, 0).cpu().numpy()
+
+    plt.figure(figsize=(10, 6))
+    plt.imshow(drawn_image_np)
+    plt.title('Sample Image with Bounding Boxes')
+    plt.axis('off')
+    plt.show()
 
 
 if __name__ == '__main__':
