@@ -1,94 +1,95 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
-import torchvision.transforms as transforms
 import os
+import numpy as np
+import random
 from tqdm import tqdm
 
-from frcnn.dataset import VOCDataset
-from frcnn.models.faster_rcnn import FasterRCNN
-from frcnn.trainer import FasterRCNNTrainer # Import the trainer
+from torch.utils.data.dataloader import DataLoader
+from torch.optim.lr_scheduler import MultiStepLR
+
+from model.faster_rcnn import FasterRCNN
+from dataset.voc_loader import VOCDataset
+from config.voc_config import FasterRCNNConfig
 
 
-def train_one_epoch(trainer, dataloader, device, epoch):
-    trainer.faster_rcnn.train()
-    total_rpn_loc_loss = 0
-    total_rpn_cls_loss = 0
-    total_roi_loc_loss = 0
-    total_roi_cls_loss = 0
-
-    for i, (images, targets) in enumerate(tqdm(dataloader, desc=f"Epoch {epoch}")):
-        images = images.to(device)
-        # Assuming batch size is 1 for now
-        bboxes = [target['boxes'].to(device) for target in targets]
-        labels = [target['labels'].to(device) for target in targets]
-        scale = 1.0 # Assuming no image scaling for now
-
-        # Forward pass and loss calculation through the trainer
-        rpn_loc_loss, rpn_cls_loss, roi_loc_loss, roi_cls_loss = trainer(images, bboxes, labels, scale)
-
-        loss = rpn_loc_loss + rpn_cls_loss + roi_loc_loss + roi_cls_loss
-
-        trainer.optimizer.zero_grad()
-        loss.backward()
-        trainer.optimizer.step()
-
-        total_rpn_loc_loss += rpn_loc_loss.item()
-        total_rpn_cls_loss += rpn_cls_loss.item()
-        total_roi_loc_loss += roi_loc_loss.item()
-        total_roi_cls_loss += roi_cls_loss.item()
-
-    avg_rpn_loc_loss = total_rpn_loc_loss / len(dataloader)
-    avg_rpn_cls_loss = total_rpn_cls_loss / len(dataloader)
-    avg_roi_loc_loss = total_roi_loc_loss / len(dataloader)
-    avg_roi_cls_loss = total_roi_cls_loss / len(dataloader)
-
-    return avg_rpn_loc_loss, avg_rpn_cls_loss, avg_roi_loc_loss, avg_roi_cls_loss
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def main():
-    # Configuration
-    dataset_root = './data/VOCdevkit'
-    num_classes = 21  # 20 VOC classes + background
-    batch_size = 1    # Object detection often uses batch size 1 due to variable image/object sizes
-    learning_rate = 1e-4
-    num_epochs = 1
-    save_dir = './models'
-    os.makedirs(save_dir, exist_ok=True)
+def train():
+    # Read the config file
+    config = FasterRCNNConfig()
+    
+    seed = config.seed
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if device == 'cuda':
+        torch.cuda.manual_seed_all(seed)
+    
+    # Load training dataset
+    voc = VOCDataset('train', im_dir=config.im_train_path, ann_dir=config.ann_train_path)
+    train_dataset = DataLoader(voc, batch_size=1, shuffle=True, num_workers=4)
+    
+    # Load model
+    faster_rcnn_model = FasterRCNN(config)
+    faster_rcnn_model.train()
+    faster_rcnn_model.to(device)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    if not os.path.exists(config.task_name):
+        os.mkdir(config.task_name)
+    optimizer = torch.optim.SGD(lr=config.lr,
+                                params=filter(lambda p: p.requires_grad,
+                                              faster_rcnn_model.parameters()),
+                                weight_decay=5E-4,
+                                momentum=0.9)
+    scheduler = MultiStepLR(optimizer, milestones=config.lr_steps, gamma=0.1)
+    
+    acc_steps = config.acc_steps
+    num_epochs = config.num_epochs
+    step_count = 1
 
-    # Dataset and DataLoader
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        # Add more transforms like resizing, normalization later
-    ])
-    train_dataset = VOCDataset(root_dir=dataset_root, split='trainval', transform=transform)
-    # Create a subset with only the first 5 images for testing
-    train_subset = Subset(train_dataset, range(5))
-    train_dataloader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
-
-    # Model, Optimizer, and Trainer
-    model = FasterRCNN(num_classes=num_classes).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    trainer = FasterRCNNTrainer(model, optimizer)
-
-    print("Starting training...")
-    for epoch in range(num_epochs):
-        avg_rpn_loc_loss, avg_rpn_cls_loss, avg_roi_loc_loss, avg_roi_cls_loss = train_one_epoch(trainer, train_dataloader, device, epoch)
-        print(f"Epoch {epoch+1}/{num_epochs}, "
-              f"RPN Loc Loss: {avg_rpn_loc_loss:.4f}, "
-              f"RPN Cls Loss: {avg_rpn_cls_loss:.4f}, "
-              f"RoI Loc Loss: {avg_roi_loc_loss:.4f}, "
-              f"RoI Cls Loss: {avg_roi_cls_loss:.4f}")
-
-        # Save model checkpoint
-        torch.save(model.state_dict(), os.path.join(save_dir, f'faster_rcnn_epoch_{epoch+1}.pth'))
-        print(f"Model saved to {os.path.join(save_dir, f'faster_rcnn_epoch_{epoch+1}.pth')}")
-
-    print("Training complete.")
+    # Start training
+    for i in range(num_epochs):
+        rpn_classification_losses = []
+        rpn_localization_losses = []
+        frcnn_classification_losses = []
+        frcnn_localization_losses = []
+        optimizer.zero_grad()
+        
+        for im, target, fname in tqdm(train_dataset):
+            im = im.float().to(device)
+            target['bboxes'] = target['bboxes'].float().to(device)
+            target['labels'] = target['labels'].long().to(device)
+            rpn_output, frcnn_output = faster_rcnn_model(im, target)
+            
+            rpn_loss = rpn_output['rpn_classification_loss'] + rpn_output['rpn_localization_loss']
+            frcnn_loss = frcnn_output['frcnn_classification_loss'] + frcnn_output['frcnn_localization_loss']
+            loss = rpn_loss + frcnn_loss
+            
+            rpn_classification_losses.append(rpn_output['rpn_classification_loss'].item())
+            rpn_localization_losses.append(rpn_output['rpn_localization_loss'].item())
+            frcnn_classification_losses.append(frcnn_output['frcnn_classification_loss'].item())
+            frcnn_localization_losses.append(frcnn_output['frcnn_localization_loss'].item())
+            loss = loss / acc_steps
+            loss.backward()
+            if step_count % acc_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+            step_count += 1
+        print('Finished epoch {}'.format(i))
+        optimizer.step()
+        optimizer.zero_grad()
+        torch.save(faster_rcnn_model.state_dict(), os.path.join(config.task_name,
+                                                                config.ckpt_name))
+        loss_output = ''
+        loss_output += 'RPN Classification Loss : {:.4f}'.format(np.mean(rpn_classification_losses))
+        loss_output += ' | RPN Localization Loss : {:.4f}'.format(np.mean(rpn_localization_losses))
+        loss_output += ' | FRCNN Classification Loss : {:.4f}'.format(np.mean(frcnn_classification_losses))
+        loss_output += ' | FRCNN Localization Loss : {:.4f}'.format(np.mean(frcnn_localization_losses))
+        print(loss_output)
+        scheduler.step()
+    print('Done Training...')
 
 
 if __name__ == '__main__':
-    main()
+    train()

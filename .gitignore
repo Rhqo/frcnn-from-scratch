@@ -9,8 +9,12 @@ wheels/
 # Virtual environments
 .venv
 
-# datasets
+# data
 data/
 
-# checkpoints
-models/*.pth
+# checkpoint
+checkpoint/
+
+# output
+output/
+output_torchvision/
