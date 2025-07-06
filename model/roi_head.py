@@ -59,6 +59,7 @@ class ROIHead(nn.Module):
         """
         # Get IOU Matrix between gt boxes and proposals
         iou_matrix = get_iou(gt_boxes, proposals)
+        
         # For each gt box proposal find best matching gt box
         best_match_iou, best_match_gt_idx = iou_matrix.max(dim=0)
         background_proposals = (best_match_iou < self.iou_threshold) & (best_match_iou >= self.low_bg_iou)
@@ -131,18 +132,22 @@ class ROIHead(nn.Module):
     def forward(self, feat, proposals, image_shape, target):
         """
         Main method for ROI head that does the following:
-        1. If training assign target boxes and labels to all proposals
-        2. If training sample positive and negative proposals
-        3. If training get bbox transformation targets for all proposals based on assignments
-        4. Get ROI Pooled features for all proposals
-        5. Call fc6, fc7 and classification and bbox transformation fc layers
-        6. Compute classification and localization loss
+            a. if training
+                1. assign target boxes and labels to all proposals
+                2. sample positive and negative proposals
+                3. get bbox transformation targets for all proposals based on assignments
+            b. else
+                4. Get ROI Pooled features for all proposals
+                5. Call fc6, fc7 and classification and bbox transformation fc layers
+                6. Compute classification and localization loss
 
-        :param feat:
-        :param proposals:
-        :param image_shape:
-        :param target:
-        :return:
+        input
+            feat:
+            proposals:
+            image_shape:
+            target:
+        return
+            frcnn_output: model predictions
         """
         if self.training and target is not None:
             # Add ground truth to proposals
@@ -244,5 +249,6 @@ class ROIHead(nn.Module):
             frcnn_output['boxes'] = pred_boxes
             frcnn_output['scores'] = pred_scores
             frcnn_output['labels'] = pred_labels
+
             return frcnn_output
     
