@@ -266,8 +266,6 @@ def evaluate_map(args):
     gts = []
     preds = []
     for im, target, fname in tqdm(test_dataset):
-        if len(preds) == 10:
-            break
         im_name = fname
         im = im.float().to(device)
         target_boxes = target['bboxes'].float().to(device)[0]
@@ -420,11 +418,11 @@ def preprocess_image_for_inference(image_path):
     im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB) # Convert to RGB for model input
 
     # Convert to tensor and normalize
-    im_tensor = torch.from_numpy(im).permute(2, 0, 1).float() / 255.0
+    im_tensor = torch.from_numpy(im).permute(2, 0, 1).float().to(device) / 255.0
     mean = torch.as_tensor(IMAGE_MEAN, dtype=torch.float32, device=device)
     std = torch.as_tensor(IMAGE_STD, dtype=torch.float32, device=device)
     im_tensor = (im_tensor - mean[:, None, None]) / std[:, None, None]
-    im_tensor = im_tensor.unsqueeze(0).to(device) # Add batch dimension
+    im_tensor = im_tensor.unsqueeze(0) # Add batch dimension
 
     return im_tensor, original_im_bgr
 
