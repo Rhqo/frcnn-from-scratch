@@ -94,3 +94,11 @@ class VOCDataset(Dataset):
                 targets['bboxes'][idx] = torch.as_tensor([x1, y1, x2, y2])
         return im_tensor, targets, im_info['filename']
         
+    def get_raw(self, index):
+        im_info = self.images_info[index]
+        im = Image.open(im_info['filename'])
+        targets = {}
+        targets['bboxes'] = torch.as_tensor([detection['bbox'] for detection in im_info['detections']])
+        targets['labels'] = torch.as_tensor([detection['label'] for detection in im_info['detections']])
+        return im, targets, im_info['filename']
+        

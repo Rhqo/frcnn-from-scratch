@@ -12,7 +12,7 @@ wheels/
 # data
 data/
 
-# checkpoint
+# checkpoints
 checkpoint/
 
 # output
