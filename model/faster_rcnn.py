@@ -94,4 +94,7 @@ class FasterRCNN(nn.Module):
             frcnn_output['boxes'] = transform_boxes_to_original_size(frcnn_output['boxes'],
                                                                      image.shape[-2:],
                                                                      old_shape)
+            frcnn_output['unfiltered_boxes'] = transform_boxes_to_original_size(frcnn_output['unfiltered_boxes'],
+                                                                                image.shape[-2:],
+                                                                                old_shape)
         return rpn_output, frcnn_output

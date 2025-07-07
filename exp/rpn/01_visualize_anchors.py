@@ -53,20 +53,22 @@ def visualize_anchors():
     print(f"Total anchors generated: {anchors.shape[0]}")
 
     # 2. Visualize with Matplotlib
-    num_anchors_to_vis = 300
-    random_indices = np.random.choice(anchors.shape[0], size=num_anchors_to_vis, replace=False)
-    sampled_anchors = anchors[random_indices]
+    # num_anchors_to_vis = 300
+    # random_indices = np.random.choice(anchors.shape[0], size=num_anchors_to_vis, replace=False)
+    sampled_anchors = anchors # [random_indices]
 
-    print(f"Visualizing a random sample of {num_anchors_to_vis} anchors (green).")
+    print(f"Visualizing a random sample of {anchors.shape[0]} anchors (green).")
 
-    fig, ax = plt.subplots(1, figsize=(12, 9))
+    fig, ax = plt.subplots(1, figsize=(10, 6))
     ax.imshow(image_resized)
 
     for i in range(sampled_anchors.shape[0]):
         x1, y1, x2, y2 = sampled_anchors[i].numpy()
         w, h = x2 - x1, y2 - y1
         # Create a Rectangle patch
-        rect = patches.Rectangle((x1, y1), w, h, linewidth=1, edgecolor='g', facecolor='none')
+        edge_color = 'r' if i < 9 else 'g' # Red for the first anchor, green for others
+        line_width = 2 if i < 9 else 0.5
+        rect = patches.Rectangle((x1, y1), w, h, linewidth=line_width, edgecolor=edge_color, facecolor='none')
         # Add the patch to the Axes
         ax.add_patch(rect)
 
@@ -82,7 +84,7 @@ def visualize_anchors():
     ax.set_xlim(min_x - padding, max_x + padding)
     ax.set_ylim(max_y + padding, min_y - padding) # Flipped for image coordinates
 
-    plt.title(f"Visualizing {num_anchors_to_vis} Sampled Anchors")
+    plt.title(f"Visualizing {anchors.shape[0]} Sampled Anchors")
     plt.show()
 
 if __name__ == '__main__':

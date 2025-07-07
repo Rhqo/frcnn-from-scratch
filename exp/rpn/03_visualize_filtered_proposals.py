@@ -68,34 +68,22 @@ def visualize_filtered_proposals():
     fig, ax = plt.subplots(1, figsize=(12, 9))
     ax.imshow(image_resized)
 
-    # Draw proposals *before* NMS (yellow)
-    for i in range(proposals_before_filter.shape[0]):
-        x1, y1, x2, y2 = proposals_before_filter[i].numpy()
-        w, h = x2 - x1, y2 - y1
-        rect = patches.Rectangle((x1, y1), w, h, linewidth=1, edgecolor='y', facecolor='none', alpha=0.5)
-        ax.add_patch(rect)
-
     # Draw final proposals *after* NMS (blue)
     for i in range(filtered_proposals.shape[0]):
         x1, y1, x2, y2 = filtered_proposals[i].numpy()
         w, h = x2 - x1, y2 - y1
-        rect = patches.Rectangle((x1, y1), w, h, linewidth=1.5, edgecolor='b', facecolor='none')
+        rect = patches.Rectangle((x1, y1), w, h, linewidth=0.4, edgecolor='b', facecolor='none')
         ax.add_patch(rect)
 
-    # Set plot limits
-    all_boxes = torch.cat([proposals_before_filter, filtered_proposals], dim=0)
-    min_x, min_y = all_boxes[:, 0].min().item(), all_boxes[:, 1].min().item()
-    max_x, max_y = all_boxes[:, 2].max().item(), all_boxes[:, 3].max().item()
-    padding = 100
-    ax.set_xlim(min_x - padding, max_x + padding)
-    ax.set_ylim(max_y + padding, min_y - padding)
+    # Set plot limits to image boundaries as proposals are clipped
+    ax.set_xlim(0, image_w)
+    ax.set_ylim(image_h, 0)
 
     handles = [
-        patches.Patch(color='yellow', alpha=0.5, label=f'Before NMS: Top {proposals_before_filter.shape[0]}'),
-        patches.Patch(color='blue', label=f'After NMS: {filtered_proposals.shape[0]}')
+        patches.Patch(color='blue', label=f'Filtered Proposals: {filtered_proposals.shape[0]}')
     ]
     plt.legend(handles=handles)
-    plt.title("Proposal Filtering Visualization")
+    plt.title(f"Proposal Filtering Visualization (Before NMS: {proposals_before_filter.shape[0]}, After NMS: {filtered_proposals.shape[0]})")
     plt.show()
 
 if __name__ == '__main__':

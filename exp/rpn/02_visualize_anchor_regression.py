@@ -44,30 +44,33 @@ def visualize_anchor_regression():
     # 1. Generate anchors
     anchors = rpn.generate_anchors(image_tensor, feat_tensor)
 
-    # 2. Create dummy regression predictions
-    num_anchors = anchors.shape[0]
-    box_transform_pred = torch.zeros(num_anchors, 1, 4)
+    # 2. Create dummy regression predictions for the first 9 anchors
+    num_anchors_to_regress = 9
+    # Ensure we don't try to regress more anchors than available
+    if anchors.shape[0] < num_anchors_to_regress:
+        num_anchors_to_regress = anchors.shape[0]
+
+    box_transform_pred = torch.zeros(num_anchors_to_regress, 1, 4)
     dummy_transformation = torch.tensor([0.2, 0.1, 0.3, 0.4])
     box_transform_pred[:, 0, :] = dummy_transformation
 
-    print(f"Applying a dummy transformation {dummy_transformation.numpy()} to all {num_anchors} anchors.")
+    print(f"Applying a dummy transformation {dummy_transformation.numpy()} to the first {num_anchors_to_regress} anchors.")
 
-    # 3. Apply regression to anchors to get proposals
-    proposals = apply_regression_pred_to_anchors_or_proposals(box_transform_pred, anchors)
+    # 3. Apply regression to the first 9 anchors to get proposals
+    proposals = apply_regression_pred_to_anchors_or_proposals(box_transform_pred, anchors[:num_anchors_to_regress])
     proposals = proposals.squeeze(1)
 
     # 4. Visualize with Matplotlib
-    num_to_vis = 300
-    random_indices = np.random.choice(anchors.shape[0], size=num_to_vis, replace=False)
-    sampled_anchors = anchors[random_indices]
-    sampled_proposals = proposals[random_indices]
+    # Use the first num_anchors_to_regress for visualization
+    sampled_anchors = anchors[:num_anchors_to_regress]
+    sampled_proposals = proposals
 
-    print(f"Visualizing a random sample of {num_to_vis} original anchors (green) and regressed proposals (blue).")
+    print(f"Visualizing the first {num_anchors_to_regress} original anchors (green) and regressed proposals (blue).")
 
     fig, ax = plt.subplots(1, figsize=(12, 9))
     ax.imshow(image_resized)
 
-    for i in range(sampled_anchors.shape[0]):
+    for i in range(num_anchors_to_regress): # Iterate only over the regressed anchors
         # Original Anchor
         x1, y1, x2, y2 = sampled_anchors[i].numpy()
         w, h = x2 - x1, y2 - y1
@@ -80,8 +83,8 @@ def visualize_anchor_regression():
         rect_proposal = patches.Rectangle((x1_p, y1_p), w_p, h_p, linewidth=1, edgecolor='b', facecolor='none', label='Regressed Proposals')
         ax.add_patch(rect_proposal)
 
-    # Set plot limits
-    all_boxes = torch.cat([anchors, proposals], dim=0)
+    # Set plot limits based on the visualized anchors and proposals
+    all_boxes = torch.cat([sampled_anchors, sampled_proposals], dim=0)
     min_x, min_y = all_boxes[:, 0].min().item(), all_boxes[:, 1].min().item()
     max_x, max_y = all_boxes[:, 2].max().item(), all_boxes[:, 3].max().item()
     padding = 200
@@ -90,11 +93,11 @@ def visualize_anchor_regression():
 
     # Create custom legend
     handles = [
-        patches.Patch(color='green', label=f'Original Anchors ({num_to_vis} sampled)'),
-        patches.Patch(color='blue', label=f'Regressed Proposals ({num_to_vis} sampled)')
+        patches.Patch(color='green', label=f'Original Anchors ({num_anchors_to_regress})'),
+        patches.Patch(color='blue', label=f'Regressed Proposals ({num_anchors_to_regress})')
     ]
     plt.legend(handles=handles)
-    plt.title("Anchor Regression Visualization")
+    plt.title(f"Anchor Regression Visualization (First {num_anchors_to_regress} Anchors)")
     plt.show()
 
 if __name__ == '__main__':

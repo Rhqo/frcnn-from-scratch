@@ -193,7 +193,6 @@ class ROIHead(nn.Module):
         box_transform_pred = self.bbox_reg_layer(box_fc_7)
         # cls_scores -> (proposals, num_classes)
         # box_transform_pred -> (proposals, num_classes * 4)
-        ##############################################
         
         num_boxes, num_classes = cls_scores.shape
         box_transform_pred = box_transform_pred.reshape(num_boxes, num_classes, 4)
@@ -244,6 +243,11 @@ class ROIHead(nn.Module):
             pred_boxes = pred_boxes.reshape(-1, 4)
             pred_scores = pred_scores.reshape(-1)
             pred_labels = pred_labels.reshape(-1)
+
+            # Store unfiltered predictions
+            frcnn_output['unfiltered_boxes'] = pred_boxes
+            frcnn_output['unfiltered_scores'] = pred_scores
+            frcnn_output['unfiltered_labels'] = pred_labels
             
             pred_boxes, pred_labels, pred_scores = self.filter_predictions(pred_boxes, pred_labels, pred_scores)
             frcnn_output['boxes'] = pred_boxes

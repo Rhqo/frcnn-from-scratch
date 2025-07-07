@@ -65,34 +65,41 @@ def visualize_transformation_targets():
     fig, ax = plt.subplots(1, figsize=(12, 9))
     ax.imshow(image_resized)
 
-    # Draw Ground Truth boxes (White)
+    # Draw Ground Truth boxes (Blue)
     for i in range(gt_boxes_resized.shape[0]):
         x1, y1, x2, y2 = gt_boxes_resized[i].numpy()
         w_gt, h_gt = x2 - x1, y2 - y1
-        rect = patches.Rectangle((x1, y1), w_gt, h_gt, linewidth=2, edgecolor='w', facecolor='none')
+        rect = patches.Rectangle((x1, y1), w_gt, h_gt, linewidth=3, edgecolor='b', facecolor='none')
         ax.add_patch(rect)
 
     # Draw Positive Anchors (Green)
     for i in range(positive_anchors.shape[0]):
         x1, y1, x2, y2 = positive_anchors[i].numpy()
         w, h = x2 - x1, y2 - y1
-        rect = patches.Rectangle((x1, y1), w, h, linewidth=1, edgecolor='g', facecolor='none')
+        rect = patches.Rectangle((x1, y1), w, h, linewidth=0.5, edgecolor='g', facecolor='none')
         ax.add_patch(rect)
 
-    # Draw Reconstructed boxes (Blue, dashed)
+    # Draw Reconstructed boxes (Yellow)
     for i in range(reconstructed_boxes.shape[0]):
         x1, y1, x2, y2 = reconstructed_boxes[i].detach().numpy()
         w, h = x2 - x1, y2 - y1
-        rect = patches.Rectangle((x1, y1), w, h, linewidth=1.5, edgecolor='b', facecolor='none', linestyle='--')
+        rect = patches.Rectangle((x1, y1), w, h, linewidth=1, edgecolor='y', facecolor='none')
         ax.add_patch(rect)
+
+        # Draw a line from the center of the positive anchor to the center of the reconstructed box
+        anchor_center_x = (positive_anchors[i, 0] + positive_anchors[i, 2]) / 2
+        anchor_center_y = (positive_anchors[i, 1] + positive_anchors[i, 3]) / 2
+        reconstructed_center_x = (reconstructed_boxes[i, 0] + reconstructed_boxes[i, 2]) / 2
+        reconstructed_center_y = (reconstructed_boxes[i, 1] + reconstructed_boxes[i, 3]) / 2
+        ax.plot([anchor_center_x, reconstructed_center_x], [anchor_center_y, reconstructed_center_y], 'r--', linewidth=0.8)
 
     ax.set_xlim(0, image_w)
     ax.set_ylim(image_h, 0)
 
     handles = [
-        patches.Patch(color='white', label='Ground Truth'),
+        patches.Patch(color='blue', label='Ground Truth'),
         patches.Patch(color='green', label=f'Positive Anchors ({positive_anchors.shape[0]})'),
-        patches.Patch(color='blue', linestyle='--', label='Reconstructed from Targets')
+        patches.Patch(color='yellow', label='Reconstructed from Targets')
     ]
     plt.legend(handles=handles)
     plt.title("Transformation Targets Verification")
