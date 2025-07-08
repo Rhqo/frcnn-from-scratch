@@ -28,4 +28,4 @@ class TVFasterRCNNConfig:
     seed: int = 42
     num_epochs: int = 10
     lr: float = 0.001
-    ckpt_name: str = 'tv_faster_rcnn_voc2007.pth'
+    ckpt_name: str = 'voc2007.pth'
