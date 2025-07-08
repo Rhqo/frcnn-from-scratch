@@ -43,6 +43,31 @@ Finished epoch 9
 RPN Classification Loss : 0.1091 | RPN Localization Loss : 0.0939 | FRCNN Classification Loss : 0.1637 | FRCNN Localization Loss : 0.0542
 Done Training...
 ```
+## `train_torchvision.py`
+
+pretrain된 torchvision의 모델(fasterrcnn_resnet50_fpn) voc에 finetuning
+
+**Usage:**
+
+```bash
+uv run train_torchvision.py
+```
+
+**Result:**
+
+```bash
+{0: 'background', 1: 'aeroplane', 2: 'bicycle', 3: 'bird', 4: 'boat', 5: 'bottle', 6: 'bus', 7: 'car', 8: 'cat', 9: 'chair', 10: 'cow', 11: 'diningtable', 12: 'dog', 13: 'horse', 14: 'motorbike', 15: 'person', 16: 'pottedplant', 17: 'sheep', 18: 'sofa', 19: 'train', 20: 'tvmonitor'}
+100%|██████████| 5011/5011 [00:00<00:00, 6697.96it/s]
+Total 5011 images found
+100%|██████████| 1253/1253 [03:51<00:00,  5.41it/s]
+Finished epoch 0
+RPN Classification Loss : 0.0158 | RPN Localization Loss : 0.0096 | FRCNN Classification Loss : 0.4592 | FRCNN Localization Loss : 0.2462
+...
+100%|██████████| 1253/1253 [03:51<00:00,  5.42it/s]
+Finished epoch 9
+RPN Classification Loss : 0.0029 | RPN Localization Loss : 0.0062 | FRCNN Classification Loss : 0.1757 | FRCNN Localization Loss : 0.1103
+Done Training...
+```
 
 ## `inference.py`
 
